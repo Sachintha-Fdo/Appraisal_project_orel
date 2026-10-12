@@ -1,0 +1,27 @@
+# Secrets — real values live only on each machine/server (see *.example)
+.env
+endpoints.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Runtime data — PII and PII-adjacent artifacts, never committed
+uploads/
+masked_pdfs/
+vendor_exchanges/
+logs/*
+!logs/.gitkeep
+system_test_results/
+csv_test_results/
+
+# Ad-hoc bank statement PDFs in the repo root (test fixtures live in test_pdf/)
+/*.pdf
+
+# Editor/OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

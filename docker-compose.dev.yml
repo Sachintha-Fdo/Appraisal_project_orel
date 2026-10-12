@@ -1,0 +1,88 @@
+# Dev/testing topology: Orel Server as a standalone dockerized service,
+# reachable directly on its own localhost port. No nginx, no replicas — for
+# local development and manual testing only.
+# Production topology (nginx + 3 Orel Server replicas) lives in docker-compose.yml.
+#
+# CDB Local Server now lives in its own repo folder (../cdb-local-server) and
+# runs on its own host — start it separately (see its own
+# docker-compose.dev.yml) and point CDB_LOCAL_SERVER_URL in endpoints.env at
+# wherever it's reachable (127.0.0.1:8100 if running alongside this on one
+# machine, its real host:port otherwise).
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up -d --build
+#   docker compose -f docker-compose.dev.yml ps
+#   docker compose -f docker-compose.dev.yml logs -f orel-server
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Downloads PaddleOCR model weights into the shared volume once, before
+  # orel-server starts. Exits after downloading.
+  model-init:
+    build: .
+    restart: "no"
+    volumes:
+      - paddleocr_models:/home/appuser/.paddleocr
+    command: ["python", "-c", "from app.services.pdf_masking.ocr import OCRProcessor; OCRProcessor()"]
+
+  orel-server:
+    build: .
+    restart: unless-stopped
+    env_file: [.env, endpoints.env]
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - USE_FAKE_REDIS=false
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD_URLENC}@postgres:5432/${POSTGRES_DB}
+      # CDB_LOCAL_SERVER_URL is read from endpoints.env — set it there to
+      # wherever CDB Local Server is actually reachable.
+    ports:
+      - "8000:8000"
+    volumes:
+      - paddleocr_models:/home/appuser/.paddleocr
+    mem_limit: 4g
+    cpus: "2.0"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      model-init:
+        condition: service_completed_successfully
+
+volumes:
+  redis_data:
+  postgres_data:
+  paddleocr_models:

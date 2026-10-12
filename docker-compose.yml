@@ -1,0 +1,147 @@
+# Production stack. Runs from the prebuilt image that build-and-push.ps1
+# pushes to Docker Hub — no source code or `build:` on the server. Local builds use docker-compose.dev.yml.
+#
+# Usage on the server (see DEPLOYMENT.md):
+#   docker compose pull
+#   docker compose up -d
+#
+# Set in .env on the server:
+#   DOCKERHUB_NAMESPACE  your Docker Hub username/organization (required)
+#   IMAGE_TAG            release to run, e.g. 1.0.0 (defaults to latest)
+#   OREL_PORT            port nginx listens on, on the server (defaults to 8080)
+#
+# Fixed project name so volumes (postgres_data etc.) stay the same no matter
+# which directory the compose file lives in.
+name: orel-server
+
+x-app: &app-defaults
+  image: ${DOCKERHUB_NAMESPACE:?set DOCKERHUB_NAMESPACE in .env}/orel-server:${IMAGE_TAG:-latest}
+  restart: unless-stopped
+  env_file: [.env, endpoints.env]
+  environment:
+    - REDIS_URL=redis://redis:6379/0
+    - USE_FAKE_REDIS=false
+    - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD_URLENC}@postgres:5432/${POSTGRES_DB}
+    # CDB_LOCAL_SERVER_URL is read from endpoints.env — CDB Local Server now
+    # runs on its own separate host, so point it at that host's real
+    # address/port (there is no shared Docker network to rely on anymore).
+  volumes:
+    # uploads/masked_pdfs/vendor_exchanges are transient per-request staging
+    # only now (see app/services/pdf_service.py, app/api/routes_appraisal.py)
+    # — audit events, masked payloads, and masked PDFs all live in Postgres,
+    # so none of those three need a shared/persistent volume anymore.
+    #
+    # Home dir of the non-root `appuser` (see Dockerfile) — must match, or
+    # paddleocr's model cache silently stops being persisted across restarts.
+    - paddleocr_models:/home/appuser/.paddleocr
+  # PaddleOCR/opencv are memory-heavy per request; caps keep one runaway
+  # request from starving the host instead of just that container.
+  mem_limit: 4g
+  cpus: "2.0"
+  healthcheck:
+    test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)"]
+    interval: 30s
+    timeout: 5s
+    retries: 3
+    start_period: 60s
+  depends_on:
+    redis:
+      condition: service_healthy
+    postgres:
+      condition: service_healthy
+    model-init:
+      condition: service_completed_successfully
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    # Not published in production — only the app containers reach it, over
+    # the compose network. docker-compose.dev.yml publishes 5432 for local use.
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # One-shot: downloads the PaddleOCR model weights into the shared volume
+  # once, before any app replica starts. Without this, all 3 replicas race to
+  # download the same files into paddleocr_models on a fresh volume and
+  # corrupt each other's downloads (observed directly on a clean deploy).
+  # Exits after downloading; restart: "no" so compose doesn't try to keep it running.
+  model-init:
+    image: ${DOCKERHUB_NAMESPACE:?set DOCKERHUB_NAMESPACE in .env}/orel-server:${IMAGE_TAG:-latest}
+    restart: "no"
+    volumes:
+      - paddleocr_models:/home/appuser/.paddleocr
+    # Goes through the app's own OCRProcessor import path deliberately, not a
+    # bare `from paddleocr import PaddleOCR` one-liner — the latter segfaulted
+    # natively in this environment; routing through the app's normal import
+    # chain (same path app1/app2/app3 use at their own startup) does not.
+    command: ["python", "-c", "from app.services.pdf_masking.ocr import OCRProcessor; OCRProcessor()"]
+
+  app1:
+    <<: *app-defaults
+
+  app2:
+    <<: *app-defaults
+
+  app3:
+    <<: *app-defaults
+
+  # app4:
+  #   <<: *app-defaults
+
+  # app5:
+  #   <<: *app-defaults
+
+  # app6:
+  #   <<: *app-defaults
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "${OREL_PORT:-8080}:8080"
+    volumes:
+      # :Z relabels the file for SELinux (enforcing by default on Oracle
+      # Linux) — without it nginx gets "permission denied" reading the conf.
+      - ./nginx/nginx.docker.conf:/etc/nginx/nginx.conf:ro,Z
+      # Uncomment once real TLS certs exist (see nginx.docker.conf's commented
+      # TLS server block) and add "443:443" to ports above.
+      # - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      app1:
+        condition: service_healthy
+      app2:
+        condition: service_healthy
+      app3:
+        condition: service_healthy
+      # app4:
+      #   condition: service_healthy
+      # app5:
+      #   condition: service_healthy
+      # app6:
+      #   condition: service_healthy
+
+volumes:
+  redis_data:
+  postgres_data:
+  paddleocr_models:

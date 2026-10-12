@@ -1,0 +1,83 @@
+{
+  "info": {
+    "name": "CDB Appraisal PII API",
+    "description": "POST /public/generate-credit-appraisal: multipart form field 'data' (JSON string, vendor's flat credit appraisal schema) + repeated 'file' parts for bank statement PDFs (filenames must match the keys in data.file_banks). Synchronous: mask PII -> forward to vendor (Azure AI Foundry) -> unmask response -> return finished appraisal. base_url defaults to the Docker Compose / nginx port (8080); switch it to http://127.0.0.1:8000 if running the app directly with uvicorn instead of docker compose.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "statement_1_path",
+      "value": "",
+      "description": "Set to the local path of BOC.pdf (repo root) after import: Body > form-data > file > Select File"
+    },
+    {
+      "key": "statement_2_path",
+      "value": "",
+      "description": "Set to the local path of HNB.pdf (repo root) after import: Body > form-data > file > Select File"
+    },
+    {
+      "key": "reference_id",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/v1/health"
+      }
+    },
+    {
+      "name": "Generate credit appraisal + statement_1.pdf + statement_2.pdf",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "data",
+              "type": "text",
+              "value": "{\"callback_url\": \"https://erp.clientdomain.com/webhooks/appraisals\", \"auto_outlier_handling\": true, \"loan_number\": \"LN-2026-9908\", \"date\": \"14-Aug-2026\", \"branch\": \"Negombo\", \"hob\": \"Colombo North\", \"marketing_officer\": \"Mr. Kamal Silva\", \"bank_1\": \"boc\", \"bank_2\": \"hnb\", \"file_banks\": {\"statement_1.pdf\": \"BOC\", \"statement_2.pdf\": \"HNB\"}, \"product_name\": \"Leasing\", \"scheme_name\": \"Standard Vehicle Lease Scheme\", \"facility_amount\": 5000000.0, \"tenor\": \"60 Months\", \"rate\": \"15%\", \"gross_rental\": 118949.0, \"purpose_of_facility\": \"Personal use vehicle to support business operations.\", \"cumulative_exposure\": 7845589.0, \"purpose_sector\": \"Wholesale & Retail Trade\", \"customer_sector\": \"Wholesale & Retail Trade\", \"customer_sub_sector\": \"Sale of household goods and equipment\", \"proposed_rental\": 118949.0, \"applicant_name\": \"Sujith Perera\", \"age\": 54, \"address\": \"No. 12, Main Road, Negombo\", \"marital_status\": \"Married\", \"spouse_name\": \"Nilanthi Perera\", \"spouse_details\": \"House Wife\", \"education\": \"Diploma in Business Management\", \"family_details\": \"2 dependents\", \"business\": \"Retail Grocery Store\", \"experience_years\": 12, \"residence_inspection_by\": \"Mr. Inspector A. Silva\", \"residence_inspection_date\": \"10-Aug-2026\", \"internal_crib_score\": 63.33, \"crib_score\": \"650\", \"crib_rating\": \"A2\", \"crib_pd_percentage\": \"10%\", \"crib_active_facilities_count\": 2, \"crib_active_facilities_total\": 5617940.0, \"crib_settled_facilities_count\": 1, \"crib_settled_facilities_total\": 1750000.0, \"crib_arrears\": \"no arrears\", \"crib_cheque_returns\": \"no cheque returns\", \"crib_recent_inquiries\": 3, \"borrower_facilities\": [{\"agreement_no\": \"123456789\", \"date_of_grant\": \"14-MAY-2018\", \"facility_amount\": 1750000.0, \"period\": 48, \"product_type\": \"VEHICLE LOAN-REGISTERED\", \"facility_status\": \"CLOSED\", \"matured_rentals\": 48, \"paid_rentals\": 48, \"capital_outstanding\": 0.0, \"vehicle_no\": \"WP KH-1234\", \"asset_description\": \"Motor Car\", \"make_model\": \"CHERRY - QQ\", \"yom\": \"2007\"}, {\"agreement_no\": \"987654321\", \"date_of_grant\": \"21-AUG-2023\", \"facility_amount\": 5000000.0, \"period\": 48, \"product_type\": \"OTHER LEASE\", \"facility_status\": \"DISBURSED\", \"matured_rentals\": 32, \"paid_rentals\": 32, \"capital_outstanding\": 2845589.0, \"vehicle_no\": \"WP KC-4321\", \"asset_description\": \"Motor Car\", \"make_model\": \"TOYOTA - ALTO\", \"yom\": \"2003\"}], \"msme_classification\": \"Micro\", \"employee_count\": 5, \"annual_turnover\": 24000000.0, \"asset_type\": \"Motor Car\", \"vehicle\": \"Toyota Vios\", \"vehicle_number\": \"SP KC-5907\", \"registration_status\": \"Registered\", \"year_of_manufacture\": \"2018\", \"fuel_type\": \"Petrol\", \"engine_capacity\": \"1500CC\", \"transmission\": \"Auto\", \"market_value\": 10000000.0, \"expected_market_value\": 9000000.0, \"valuer\": \"Certified Valuers Ltd\", \"ownership_type\": \"Open Papers\", \"valuation_remarks\": \"No adverse remarks noted\", \"supplier_name\": \"Toyota Lanka\", \"supplier_contact\": \"+94771234567\", \"asset_inspection_by\": \"Officer B. Perera\", \"asset_inspection_date\": \"11-Aug-2026\", \"guarantor_name\": \"Niroshan Perera\", \"guarantor_age\": 31, \"guarantor_address\": \"No. 321, Sea Street, Negombo\", \"guarantor_marital_status\": \"Single\", \"guarantor_relationship\": \"Son\", \"guarantor_contact_date\": \"12-Aug-2026\", \"guarantor_contact_time\": \"10:30 AM\", \"guarantor_employment\": \"Employee of Apple Insurance\", \"guarantor_employer\": \"Apple Insurance\", \"guarantor_experience_years\": 3, \"guarantor_internal_crib_score\": 75.0, \"guarantor_crib_score\": \"580\", \"guarantor_crib_rating\": \"B1\", \"guarantor_pd_percentage\": \"12%\", \"guarantor_active_facilities_count\": 1, \"guarantor_active_facilities_total\": 2545589.0, \"guarantor_settled_facilities_count\": 0, \"guarantor_settled_facilities_total\": 0.0, \"guarantor_arrears\": \"no arrears\", \"guarantor_cheque_returns\": \"no cheque returns\", \"guarantor_recent_inquiries\": 1, \"guarantor_facilities\": [{\"agreement_no\": \"987654123\", \"date_of_grant\": \"21-AUG-2023\", \"facility_amount\": 4000000.0, \"period\": 60, \"product_type\": \"OTHER LEASE\", \"facility_status\": \"DISBURSED\", \"matured_rentals\": 32, \"paid_rentals\": 32, \"capital_outstanding\": 2545589.0, \"vehicle_no\": \"WP KC-4321\", \"asset_description\": \"Motor Car\", \"make_model\": \"TOYOTA - ALTO\", \"yom\": \"2003\"}], \"source_of_income\": \"Self Employed\", \"total_asset_value\": 20000000.0, \"monthly_commitments\": 120000.0, \"industry_margin_percent\": 20.0, \"bank_statement_summary\": \"\", \"outlier_details\": \"\", \"customer_contribution\": 4000000.0, \"ltv\": 50.0, \"esms_risk\": \"Low\", \"esms_closure_statement\": \"This facility is screened through ESMS exclusion list and it was not identified as a high risk transaction as per the exclusion list\", \"policy_exceptions\": \"None\", \"policy_exception_approval\": \"\", \"ai_credit_decision\": \"\", \"ai_credit_score\": 0.0, \"customer_contact_date\": \"12-Aug-2026\", \"customer_contact_time\": \"10:30 AM\", \"contact_details\": \"Met at business premises\", \"additional_pledge_note\": \"\", \"covering_approval_note\": \"\", \"customer_data_modification\": \"\", \"settlement_note\": \"\"}"
+            },
+            {
+              "key": "file",
+              "type": "file",
+              "src": "{{statement_1_path}}"
+            },
+            {
+              "key": "file",
+              "type": "file",
+              "src": "{{statement_2_path}}"
+            }
+          ]
+        },
+        "url": "{{base_url}}/public/generate-credit-appraisal",
+        "description": "Field 'data' is Text (JSON string, matches examples/new_request_payload.json). Two 'file' parts, one per statement_1.pdf/statement_2.pdf (must match data.file_banks keys). After import, set statement_1_path/statement_2_path variables or re-select the files directly: Body > form-data > file > Select File (use BOC.pdf and HNB.pdf from the project root). Response returns { reference_id, status, result } where result is the vendor's generated appraisal with all PII unmasked."
+      }
+    },
+    {
+      "name": "Get status by reference_id",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/v1/appraisal/{{reference_id}}/status"
+      }
+    },
+    {
+      "name": "Get result by reference_id",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{base_url}}/api/v1/appraisal/{{reference_id}}/result",
+        "description": "Optional: re-fetch a completed result by reference_id (also returned inline by generate-credit-appraisal itself)."
+      }
+    }
+  ]
+}
